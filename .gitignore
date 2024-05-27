@@ -1,4 +1,5 @@
 Data/
+venv_facial_emotion_recognition/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
