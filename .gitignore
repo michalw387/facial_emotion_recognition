@@ -1,5 +1,6 @@
 Data/
 venv_facial_emotion_recognition/
+videos_dataset.npy
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

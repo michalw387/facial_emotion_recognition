@@ -34,9 +34,9 @@ while True:
 
         # Draw a label with a name below the face
         font = cv2.FONT_HERSHEY_DUPLEX
-        cv2.putText(
-            frame, emotion, (left + 6, bottom + 25), font, 1.0, (255, 255, 255), 1
-        )
+        # cv2.putText(
+        #     frame, emotion, (left + 6, bottom + 25), font, 1.0, (255, 255, 255), 1
+        # )
 
     # Display the resulting image
     cv2.imshow("Video", frame)

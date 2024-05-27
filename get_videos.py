@@ -3,24 +3,28 @@ import random
 import cv2
 from face_detection_from_photos import *
 import numpy as np
+import random
 
 VIDEOS_DIRECTORY = "Data\\Videos\\"
 
 FRAMES_PER_VIDEO = 1
 
-MAX_VIDEOS_PER_PERSON = 5
+MAX_VIDEOS_PER_PERSON = 10
 MAX_FOLDERS = 3
 
 
-# def split_dataset(dataset):
-#     random.shuffle(dataset)
+def split_dataset(dataset):
+    test_videos = dataset.pop(random.randint(0, len(dataset) - 1))
 
-#     train_size = int(len(dataset) * 0.8)
+    train_videos = []
 
-#     train_set = dataset[:train_size]
-#     test_set = dataset[train_size:]
+    for person in dataset:
+        for frame, emotion in zip(person["faces"], person["emotions"]):
+            train_videos.append({"face": frame, "emotion": emotion})
 
-#     return train_set, test_set
+    random.shuffle(train_videos)
+
+    return train_videos, test_videos
 
 
 def get_videos(show_frames=False):
@@ -46,14 +50,15 @@ def get_videos(show_frames=False):
 
         dataset.append({"faces": detected_faces, "emotions": emotions})
 
+    print("Videos Loaded:")
     print(
-        f"persons:{len(dataset)} frames/labels:{len(dataset[0]['faces'])} width:{len(dataset[0]['faces'][0])}",
+        f"People: {len(dataset)}, frames/labels: {len(dataset[0]['faces'])}, width0: {len(dataset[0]['faces'][0])},",
         end="",
     )
     print(
-        f" height:{len(dataset[0]['faces'][0][0])} channels:{len(dataset[0]['faces'][0][0][0])}",
-        end="",
+        f" height0: {len(dataset[0]['faces'][0][0])}, channels: {len(dataset[0]['faces'][0][0][0])}"
     )
+    return dataset
 
 
 def get_one_person_videos(folder, show_frames=False):
@@ -100,4 +105,23 @@ def get_one_person_videos(folder, show_frames=False):
     return selected_frames
 
 
-get_videos(show_frames=False)
+def save_to_file(dataset, filename="videos_dataset.npy"):
+    print("Saving dataset to file...")
+    np.save(filename, dataset)
+    print("Dataset saved to file.")
+
+
+def load_from_file(filename="videos_dataset.npy"):
+    print("Loading dataset from file...")
+    dataset = np.load(filename, allow_pickle=True)
+    print("Dataset loaded from file.")
+    return list(dataset)
+
+
+# videos_dataset = get_videos(show_frames=False)
+
+# save_to_file(videos_dataset)
+
+videos_dataset = load_from_file()
+
+train_set, test_set = split_dataset(videos_dataset)
