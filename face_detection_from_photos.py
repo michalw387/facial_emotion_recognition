@@ -1,23 +1,57 @@
-from PIL import Image
-import dlib
-from skimage import io
-import face_recognition
-import cv2
 import numpy as np
+import cv2
+import PIL
+from PIL import Image
+import face_recognition
 
-VIDEOS_DIRECTORY = "Data\\Images\\"
-IMAGE_FILES = ["barack.jpg", "baracks.jpg", "people.jpg"]
+import config
 
-EMOTIONS_DICT = {
-    1: "neutral",
-    2: "calm",
-    3: "happy",
-    4: "sad",
-    5: "angry",
-    6: "fearful",
-    7: "disgust",
-    8: "surprised",
-}
+
+def upscale_image_to_desire_size(img, size=config.IMAGE_SQUARE_SIZE):
+    if not isinstance(img, Image.Image):
+        img = Image.fromarray(np.uint8(img)).convert("RGB")
+    if img.size[0] < size and img.size[1] < size:
+        if img.size[0] > img.size[1]:
+            mywidth = size
+            wpercent = mywidth / float(img.size[0])
+            myheight = int((float(img.size[1]) * float(wpercent)))
+            img = img.resize((mywidth, myheight), PIL.Image.LANCZOS)
+        else:
+            myheight = size
+            hpercent = myheight / float(img.size[1])
+            mywidth = int((float(img.size[0]) * float(hpercent)))
+            img = img.resize((mywidth, myheight), PIL.Image.LANCZOS)
+
+    return np.array(img)
+
+
+def expand_image_to_square(img, background_color=(255, 255, 255)):
+    if not isinstance(img, Image.Image):
+        img = Image.fromarray(np.uint8(img)).convert("RGB")
+    width, height = img.size
+    if width == height:
+        return img
+    elif width > height:
+        result = Image.new(img.mode, (width, width), background_color)
+        result.paste(img, (0, (width - height) // 2))
+        return result
+    else:
+        result = Image.new(img.mode, (height, height), background_color)
+        result.paste(img, ((height - width) // 2, 0))
+        return result
+
+
+def resize_image(PIL_image):
+    if not isinstance(PIL_image, Image.Image):
+        PIL_image = Image.fromarray(np.uint8(PIL_image)).convert("RGB")
+
+    desire_size = (config.IMAGE_SQUARE_SIZE, config.IMAGE_SQUARE_SIZE)
+
+    PIL_image.thumbnail(desire_size, PIL.Image.LANCZOS)
+    PIL_image = upscale_image_to_desire_size(PIL_image, config.IMAGE_SQUARE_SIZE)
+    PIL_image = expand_image_to_square(PIL_image)
+
+    return np.array(PIL_image)
 
 
 def crop_faces_from_image(image, face_locations):
@@ -68,7 +102,11 @@ def show_image_with_rectangles(
 
 
 def get_faces_from_images(
-    images, show_image=False, labels_indexes=None, crop=False, only_one_face=False
+    images,
+    show_image=False,
+    labels_indexes=None,
+    crop=False,
+    only_one_face=False,
 ):
     all_images_faces = []
     label = None
@@ -81,6 +119,15 @@ def get_faces_from_images(
                 image, image_faces_locations
             )  # (faces, height, width, channels)
 
+            resizes_faces = []
+
+            for face in cropped_faces:
+                square_face = resize_image(face)
+                # dodać transformację twarzy do landmarków
+                resizes_faces.append(square_face)
+
+            cropped_faces = np.array(resizes_faces)
+
             if only_one_face:
                 cropped_faces = cropped_faces[0]  # (height, width, channels)
 
@@ -89,7 +136,7 @@ def get_faces_from_images(
             all_images_faces.append(image_faces_locations)
 
         if labels_indexes:
-            label = EMOTIONS_DICT[labels_indexes[i]]
+            label = config.EMOTIONS_DICT[labels_indexes[i]]
 
         if show_image:
             show_image_with_rectangles(image, image_faces_locations, label=label)
@@ -98,8 +145,7 @@ def get_faces_from_images(
 
 
 def get_faces_locations_from_image(image):
-    face_locations = face_recognition.face_locations(image)
-    return face_locations
+    return face_recognition.face_locations(image)
 
 
 def get_faces_from_image_file(image_path):
@@ -107,57 +153,67 @@ def get_faces_from_image_file(image_path):
     return get_faces_locations_from_image(image)
 
 
-def find_faces_with_landmarks(file_name):
+# def find_faces_with_landmarks(file_name):
 
-    predictor_model = "shape_predictor_68_face_landmarks.dat"
+#     predictor_model = "shape_predictor_68_face_landmarks.dat"
 
-    # Create a HOG face detector using the built-in dlib class
-    face_detector = dlib.get_frontal_face_detector()
-    face_pose_predictor = dlib.shape_predictor(predictor_model)
+#     # Create a HOG face detector using the built-in dlib class
+#     face_detector = dlib.get_frontal_face_detector()
+#     face_pose_predictor = dlib.shape_predictor(predictor_model)
 
-    win = dlib.image_window()
+#     win = dlib.image_window()
 
-    # Load the image
-    image = io.imread(file_name)
+#     # Load the image
+#     image = io.imread(file_name)
 
-    # Run the HOG face detector on the image data
-    detected_faces = face_detector(image, 1)
+#     # Run the HOG face detector on the image data
+#     detected_faces = face_detector(image, 1)
 
-    print("Found {} faces in the image file {}".format(len(detected_faces), file_name))
+#     print("Found {} faces in the image file {}".format(len(detected_faces), file_name))
 
-    # Show the desktop window with the image
-    win.set_image(image)
+#     # Show the desktop window with the image
+#     win.set_image(image)
 
-    # Loop through each face we found in the image
-    for i, face_rect in enumerate(detected_faces):
+#     # Loop through each face we found in the image
+#     for i, face_rect in enumerate(detected_faces):
 
-        # Detected faces are returned as an object with the coordinates
-        # of the top, left, right and bottom edges
-        print(
-            "- Face #{} found at Left: {} Top: {} Right: {} Bottom: {}".format(
-                i,
-                face_rect.left(),
-                face_rect.top(),
-                face_rect.right(),
-                face_rect.bottom(),
-            )
-        )
+#         # Detected faces are returned as an object with the coordinates
+#         # of the top, left, right and bottom edges
+#         print(
+#             "- Face #{} found at Left: {} Top: {} Right: {} Bottom: {}".format(
+#                 i,
+#                 face_rect.left(),
+#                 face_rect.top(),
+#                 face_rect.right(),
+#                 face_rect.bottom(),
+#             )
+#         )
 
-        # Draw a box around each face we found
-        win.add_overlay(face_rect)
+#         # Draw a box around each face we found
+#         win.add_overlay(face_rect)
 
-        # Get the the face's pose
-        pose_landmarks = face_pose_predictor(image, face_rect)
+#         # Get the the face's pose
+#         pose_landmarks = face_pose_predictor(image, face_rect)
 
-        # Draw the face landmarks on the screen.
-        win.add_overlay(pose_landmarks)
+#         # Draw the face landmarks on the screen.
+#         win.add_overlay(pose_landmarks)
 
-    dlib.hit_enter_to_continue()
+#     dlib.hit_enter_to_continue()
 
 
 if __name__ == "__main__":
-    for file_name in IMAGE_FILES:
-        f = get_faces_from_image_file(VIDEOS_DIRECTORY + file_name)
+    for file_name in config.IMAGE_FILES:
+        faces_locations = get_faces_from_image_file(config.VIDEOS_DIRECTORY + file_name)
 
-    for file_name in IMAGE_FILES:
-        find_faces_with_landmarks(VIDEOS_DIRECTORY + file_name)
+        print("--------------------")
+        print(np.array(faces_locations))
+        for loc in faces_locations:
+            top, right, bottom, left = loc
+            print(f"width: {right-left}, height: {bottom-top}")
+
+        show_image_with_rectangles(
+            cv2.imread(config.VIDEOS_DIRECTORY + file_name), faces_locations
+        )
+
+    # for file_name in config.IMAGE_FILES:
+    #     find_faces_with_landmarks(config.VIDEOS_DIRECTORY + file_name)
