@@ -41,7 +41,7 @@ def expand_image_to_square(img, background_color=(255, 255, 255)):
         return result
 
 
-def resize_image(PIL_image):
+def resize_image_to_square(PIL_image):
     if not isinstance(PIL_image, Image.Image):
         PIL_image = Image.fromarray(np.uint8(PIL_image)).convert("RGB")
 
@@ -50,6 +50,15 @@ def resize_image(PIL_image):
     PIL_image.thumbnail(desire_size, PIL.Image.LANCZOS)
     PIL_image = upscale_image_to_desire_size(PIL_image, config.IMAGE_SQUARE_SIZE)
     PIL_image = expand_image_to_square(PIL_image)
+
+    return np.array(PIL_image)
+
+
+def resize_image(PIL_image, max_size):
+    if not isinstance(PIL_image, Image.Image):
+        PIL_image = Image.fromarray(np.uint8(PIL_image)).convert("RGB")
+
+    PIL_image.thumbnail((max_size, max_size), PIL.Image.LANCZOS)
 
     return np.array(PIL_image)
 
@@ -111,7 +120,11 @@ def get_faces_from_images(
     all_images_faces = []
     label = None
 
+    if images.ndim == 3:
+        images = np.array([images])
+
     for i, image in enumerate(images):
+
         image_faces_locations = get_faces_locations_from_image(image)
 
         if crop:
@@ -122,7 +135,7 @@ def get_faces_from_images(
             resizes_faces = []
 
             for face in cropped_faces:
-                square_face = resize_image(face)
+                square_face = resize_image_to_square(face)
                 # dodać transformację twarzy do landmarków
                 resizes_faces.append(square_face)
 
