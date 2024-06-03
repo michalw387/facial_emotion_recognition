@@ -58,7 +58,7 @@ class EvaluateModel:
             dataset.normalize_dataset()
             dataset.save_dataset_to_file()
 
-        dataset.apply_filters()
+        dataset.apply_face_filters()
 
         dataset.print_dataset_info()
 
