@@ -4,6 +4,7 @@
 VIDEOS_DIRECTORY = "Data\\Videos\\"
 IMAGES_DIRECTORY = "Data\\Images\\"
 MODELS_DIRECTORY = "Models\\"
+DATASETS_DIRECTORY = "Data\\Datasets\\"
 
 IMAGE_FILES = ["barack.jpg", "baracks.jpg", "people.jpg"]
 
@@ -33,4 +34,5 @@ SKIP_FRAME_VIDEO_CAPTURE = 2
 APPLY_HOG = False
 
 # model
-BATCH_SIZE = 50
+BATCH_SIZE = 100
+VALIDATION_SET_SIZE = 0.1
