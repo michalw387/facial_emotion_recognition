@@ -54,15 +54,6 @@ def resize_image_to_square(PIL_image):
     return np.array(PIL_image)
 
 
-def resize_image(PIL_image, max_size):
-    if not isinstance(PIL_image, Image.Image):
-        PIL_image = Image.fromarray(np.uint8(PIL_image)).convert("RGB")
-
-    PIL_image.thumbnail((max_size, max_size), PIL.Image.LANCZOS)
-
-    return np.array(PIL_image)
-
-
 def crop_faces_from_image(image, face_locations):
     face_images = []
 
