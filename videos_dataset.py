@@ -14,16 +14,16 @@ from utility_functions import apply_hog
 
 
 class VideosDataset(Dataset):
-    def __init__(self, frames, emotions):
-        self.frames = torch.tensor(frames)
+    def __init__(self, faces, emotions):
+        self.faces = torch.tensor(faces)
         self.emotions = torch.tensor(emotions)
-        self.n_frames = len(self.frames)
+        self.n_faces = len(self.faces)
 
     def __len__(self):
-        return self.n_frames
+        return self.n_faces
 
     def __getitem__(self, index):
-        return self.frames[index], self.emotions[index]
+        return self.faces[index], self.emotions[index]
 
 
 class LoadVideosDataset:
@@ -63,7 +63,8 @@ class LoadVideosDataset:
             for i in range(len(person["faces"])):
                 person["faces"][i] = person["faces"][i] / 255
 
-    def apply_face_filters(self, faces, gray_scale=False, transpose=True):
+    def apply_face_filters(self, faces=None, gray_scale=False, transpose=True):
+
         faces = np.array(
             faces,
             dtype=np.float32,
@@ -86,14 +87,25 @@ class LoadVideosDataset:
         dataset_len = len(self.dataset) * len(self.dataset[0]["faces"])
 
         test_set_len = 0
-        test_frames = {"faces": np.array(), "emotions": np.array()}
+        test_frames = {"faces": [], "emotions": []}
 
         while test_set_len < dataset_len * 0.1:
+            if len(self.dataset) == 0:
+                raise Exception("No more frames to load to test set - dataset is empty")
+
             frames = self.get_test_set()
-            test_frames["faces"] = np.append(test_frames["faces"], frames["faces"])
+
+            if len(test_frames["faces"]) == 0:
+                test_frames["faces"] = frames["faces"]
+            else:
+                test_frames["faces"] = np.concatenate(
+                    (test_frames["faces"], frames["faces"]), axis=0
+                )
+
             test_frames["emotions"] = np.append(
                 test_frames["emotions"], frames["emotions"]
             )
+
             test_set_len = len(test_frames["faces"])
 
         test_emotions = test_frames["emotions"]
@@ -218,6 +230,9 @@ class LoadVideosDataset:
                 only_one_face=True,
             )
 
+            if len(detected_faces) == 0:
+                continue
+
             dataset.append({"faces": detected_faces, "emotions": emotions})
 
         print("--------Videos loaded--------")
@@ -236,6 +251,7 @@ class LoadVideosDataset:
                 >= config.MAX_VIDEOS_PER_PERSON
             ):
                 break
+            # print("Loading video:", video_filename)
 
             emotion_index = int(video_filename[6:8])
 
@@ -256,12 +272,12 @@ class LoadVideosDataset:
 
             fraction_video_size = (len(all_frames) - 1) // config.FRAMES_PER_VIDEO
 
-            offset = 3
+            overlap_offset = 3
 
             for iteration_offset in range(config.FRAMES_PER_VIDEO):
                 i = random.randint(
-                    fraction_video_size * iteration_offset + offset,
-                    fraction_video_size * (iteration_offset + 1) - offset,
+                    fraction_video_size * iteration_offset + overlap_offset,
+                    fraction_video_size * (iteration_offset + 1) - overlap_offset,
                 )
 
                 while i in used_frames:
@@ -282,16 +298,20 @@ class LoadVideosDataset:
         cv2.destroyAllWindows()
 
     def save_dataset_to_file(self, filename="videos_dataset.npy"):
-        np.save(filename, self.dataset)
+        path = os.path.join(config.DATASETS_DIRECTORY, filename)
+        np.save(path, self.dataset)
 
     def load_dataset_from_file(self, filename="videos_dataset.npy"):
-        dataset = np.load(filename, allow_pickle=True)
+        path = os.path.join(config.DATASETS_DIRECTORY, filename)
+        dataset = np.load(path, allow_pickle=True)
         self.dataset = dataset.tolist()
         return list(dataset)
 
 
 if __name__ == "__main__":
-    # Loading and saving dataset
+
+    # Loading videos and saving dataset
+
     dataset = LoadVideosDataset()
 
     dataset.get_videos(show_frames=False)
@@ -300,4 +320,4 @@ if __name__ == "__main__":
 
     dataset.normalize_dataset()
 
-    dataset.save_dataset_to_file(filename="test2.npy")
+    dataset.save_dataset_to_file(filename="test.npy")
