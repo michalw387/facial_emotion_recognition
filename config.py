@@ -3,6 +3,7 @@
 # files
 VIDEOS_DIRECTORY = "Data\\Videos\\"
 IMAGES_DIRECTORY = "Data\\Images\\"
+MODELS_DIRECTORY = "Models\\"
 
 IMAGE_FILES = ["barack.jpg", "baracks.jpg", "people.jpg"]
 
@@ -20,10 +21,16 @@ EMOTIONS_DICT = {
 NUM_EMOTIONS = len(EMOTIONS_DICT)
 
 # videos
-FRAMES_PER_VIDEO = 1
-MAX_VIDEOS_PER_PERSON = None
 MAX_FOLDERS = None
-IMAGE_SQUARE_SIZE = 100
+MAX_VIDEOS_PER_PERSON = None
+FRAMES_PER_VIDEO = 4
+IMAGE_SQUARE_SIZE = 200
 
 # face detection
 SKIP_FRAME_VIDEO_CAPTURE = 2
+
+# filters
+APPLY_HOG = False
+
+# model
+BATCH_SIZE = 50
