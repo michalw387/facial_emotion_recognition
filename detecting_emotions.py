@@ -3,6 +3,8 @@ import PIL
 import numpy as np
 import torch
 
+from image_processing import readjust_indexes_emotions
+
 
 def normalize_image(image):
     image = np.array(image)
@@ -20,7 +22,8 @@ def normalize_to_tensor(face, transpose=True):
     if transpose:
         face = face.T
 
-    face = face.unsqueeze(0)
+    while face.ndim < 4:
+        face = face.unsqueeze(0)
 
     return face
 
@@ -28,27 +31,14 @@ def normalize_to_tensor(face, transpose=True):
 def get_emotion_prediction(model, face):
     face = normalize_to_tensor(face)
 
+    print(face.shape)
+
     tensor_emotion = model.predict(face)
+
+    tensor_emotion = torch.tensor(
+        readjust_indexes_emotions(tensor_emotion.cpu())
+    ).float()
 
     emotion = model.get_emotion_from_tensor(tensor_emotion)
 
     return emotion
-
-
-# import random
-
-# EMOTIONS = ["Angry", "Disgust", "Fear", "Happy", "Sad", "Surprise", "Neutral"]
-
-
-# def get_emotion(face):
-#     return random.choice(EMOTIONS)
-
-
-# def detect_emotion(frame, face_locations):
-#     emotions = []
-#     for top, right, bottom, left in face_locations:
-#         face = frame[top:bottom, left:right]
-#         emotion = get_emotion(face)
-#         emotions.append(emotion)
-
-#     return emotions

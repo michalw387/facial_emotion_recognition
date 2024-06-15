@@ -7,10 +7,12 @@ from torch import nn
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
 from skimage.color import rgb2gray
+from tqdm import tqdm
 
 import config
+from landmarks_utility import EyeMouthImages
+from image_processing import ImageProcessing
 from face_detection_from_photos import get_faces_from_images
-from utility_functions import apply_hog
 
 
 class VideosDataset(Dataset):
@@ -42,26 +44,60 @@ class LoadVideosDataset:
         print("Emotions:", self.dataset[index]["emotions"])
         print("Frames:", self.dataset[index]["faces"])
 
-    def print_dataset_info(self):
-        print("--------Dataset info--------")
-        print("People in dataset:", len(self.dataset))
-        print("Frames per person:", len(self.dataset[0]["faces"]))
-        print("Frame size:", np.array(self.dataset[0]["faces"][0]).shape)
-        different_emotions = set(
+    def print_dataset_info(self, count_emotions=True):
+        self.different_emotions_index = set(
             np.array(
                 [self.dataset[i]["emotions"] for i in range(len(self.dataset))]
             ).flatten()
         )
+        self.different_emotions_names = [
+            config.EMOTIONS_DICT[i] for i in self.different_emotions_index
+        ]
+
+        print("--------Dataset info--------")
+        print("People in dataset:", len(self.dataset))
+        print("Frames per person:", len(self.dataset[0]["faces"]))
         print(
-            "Emotions in dataset:",
-            [config.EMOTIONS_DICT[i] for i in different_emotions],
+            "Frames per emotion from one person:",
+            int(len(self.dataset[0]["faces"]) / len(self.different_emotions_index)),
         )
+        print("Total frames:", len(self.dataset) * len(self.dataset[0]["faces"]))
+        print("Frame shape:", np.array(self.dataset[0]["faces"][0]).shape)
+        print("Emotions in dataset:", self.different_emotions_names)
+        if count_emotions:
+            self.count_emotions()
+            print("Emotions counter:", self.emotions_counter)
+
         print("______________________________")
+
+    def count_emotions(self):
+        emotions_counter_index = {
+            emotion: 0 for emotion in self.different_emotions_index
+        }
+        for person in self.dataset:
+            for emotion in person["emotions"]:
+                emotions_counter_index[emotion] += 1
+
+        self.emotions_counter = {
+            config.EMOTIONS_DICT[key]: value
+            for key, value in emotions_counter_index.items()
+        }
 
     def normalize_dataset(self):
         for person in self.dataset:
             for i in range(len(person["faces"])):
                 person["faces"][i] = person["faces"][i] / 255
+
+    def unnormalize_faces(self, faces):
+        for face in faces:
+            face *= 255
+        return faces.astype("uint8")
+
+    def normalize_faces(self, faces):
+        faces = faces.astype("float32")
+        for face in faces:
+            face /= 255.0
+        return faces.astype("float32")
 
     def apply_face_filters(self, faces=None, gray_scale=False, transpose=True):
 
@@ -71,18 +107,37 @@ class LoadVideosDataset:
         )
 
         if config.APPLY_HOG:
-            faces = apply_hog(faces)
-            # LOG ????????????????
-        elif gray_scale:
+            faces = ImageProcessing.apply_hog(faces)
+        elif gray_scale or config.GENERATE_MOUTH_AND_EYE:
             faces = np.array([rgb2gray(frame) for frame in faces])
 
         if transpose:  # ??????????????????????????????????????
-            faces = np.array([frame.T for frame in faces])
+            faces = np.array([face.T for face in faces])
+
+        if config.GENERATE_MOUTH_AND_EYE:
+            faces = self.unnormalize_faces(faces)
+            face_eye_mouth_imgs = []
+
+            for face in faces:
+                face = face.astype("uint8")
+
+                eye, mouth = EyeMouthImages.get_eye_mouth_images(face)
+
+                square_eye = ImageProcessing.resize_image_to_square(eye, two_dim=True)
+                square_mouth = ImageProcessing.resize_image_to_square(
+                    mouth, two_dim=True
+                )
+
+                face_eye_mouth_img = np.stack((face, square_eye, square_mouth))
+                face_eye_mouth_imgs.append(face_eye_mouth_img)
+
+            faces = np.array(face_eye_mouth_imgs)
+
+            faces = self.normalize_faces(faces)
 
         return np.array(faces)
 
     def get_test_data_loader(self, gray_scale=False, transpose=True):
-        # test_frames = self.get_test_set()
 
         dataset_len = len(self.dataset) * len(self.dataset[0]["faces"])
 
@@ -114,19 +169,6 @@ class LoadVideosDataset:
             test_frames["faces"], gray_scale, transpose
         )
 
-        # frames = np.array(
-        #     test_frames["faces"],
-        #     dtype=np.float32,
-        # )
-
-        # if config.APPLY_HOG:
-        #     frames = apply_hog(frames)
-        # elif gray_scale:
-        #     frames = np.array([rgb2gray(frame) for frame in frames])
-
-        # if transpose:
-        #     frames = np.array([frame.T for frame in frames])
-
         return DataLoader(
             VideosDataset(test_faces, test_emotions),
             batch_size=self.batch_size,
@@ -140,30 +182,17 @@ class LoadVideosDataset:
 
         flatten_dataset = self.get_flatten_persons_from_dataset()
 
-        one_offset_emotions = torch.tensor(
-            np.array(flatten_dataset["emotions"]) - 1
+        adjusted_emotions = torch.tensor(
+            ImageProcessing.adjust_indexes_emotions(flatten_dataset["emotions"])
         ).long()
 
         one_hot_emotions = nn.functional.one_hot(
-            one_offset_emotions, num_classes=config.NUM_EMOTIONS
+            adjusted_emotions, num_classes=config.NUM_EMOTIONS
         ).float()
 
         faces = self.apply_face_filters(
             flatten_dataset["frames"], gray_scale, transpose
         )
-
-        # frames = np.array(
-        #     flatten_dataset["frames"],
-        #     dtype=np.float32,
-        # )
-
-        # if config.APPLY_HOG:
-        #     frames = apply_hog(frames)
-        # elif gray_scale:
-        #     frames = np.array([rgb2gray(frame) for frame in frames])
-
-        # if transpose:
-        #     frames = np.array([frame.T for frame in frames])
 
         train_faces, val_faces, train_emotions, val_emotions = train_test_split(
             faces, one_hot_emotions, test_size=self.val_set_size
@@ -202,20 +231,71 @@ class LoadVideosDataset:
 
         return {"frames": frames, "emotions": emotions}
 
-    def get_videos(self, show_frames=False, start_loading_folder=0):
+    def generate_face_eye_mouth_images(self, apply_hog=False, show_progress=False):
+        print("--------Generating face, eye and mouth images--------")
+
+        for person_i, person in enumerate(tqdm(self.dataset, desc="Persons")):
+            if show_progress:
+                tqdm.write(f"---Processing person {person_i + 1}/{len(self.dataset)}")
+
+            one_person_faces = person["faces"]
+
+            one_person_faces = np.array(
+                one_person_faces,
+                dtype=np.float32,
+            )
+
+            if apply_hog:
+                one_person_faces = ImageProcessing.apply_hog(one_person_faces)
+            else:
+                one_person_faces = np.array(
+                    [rgb2gray(frame) for frame in one_person_faces]
+                )
+
+            one_person_faces = self.unnormalize_faces(one_person_faces)
+
+            temp_face_eye_mouth_imgs = []
+
+            for face_i, face in enumerate(
+                tqdm(one_person_faces, leave=False, desc="Faces")
+            ):
+                if show_progress:
+                    tqdm.write(f"Processing face {face_i + 1}/{len(one_person_faces)}")
+
+                face = face.astype("uint8")
+
+                eye_img, mouth_img = EyeMouthImages.get_eye_mouth_images(face)
+
+                square_eye_img = ImageProcessing.resize_image_to_square(
+                    eye_img, two_dim=True
+                )
+                square_mouth_img = ImageProcessing.resize_image_to_square(
+                    mouth_img, two_dim=True
+                )
+
+                face_eye_mouth_img = np.stack((face, square_eye_img, square_mouth_img))
+                temp_face_eye_mouth_imgs.append(face_eye_mouth_img)
+
+            one_person_face_eye_mouth_imgs = np.array(temp_face_eye_mouth_imgs)
+
+            one_person_face_eye_mouth_imgs = self.normalize_faces(
+                one_person_face_eye_mouth_imgs
+            )
+
+            person["faces"] = one_person_face_eye_mouth_imgs
+
+    def get_videos(self, show_frames=False):
         print("--------Loading videos files--------")
 
         dataset = []
         for folder in os.listdir(config.VIDEOS_DIRECTORY):
             if config.MAX_FOLDERS is not None and len(dataset) >= config.MAX_FOLDERS:
                 break
-            # if len(dataset) >= config.MAX_FOLDERS:
-            #     break
-            # if start_loading_folder < folder[:]:
-            #     start_loading_folder -= 1
-            #     continue
 
-            print("Loading folder:", folder)
+            print(
+                f"---Loading folder: {folder} "
+                f"[{folder[-2:]} / {min(len(os.listdir(config.VIDEOS_DIRECTORY)), config.MAX_FOLDERS)}]"
+            )
 
             selected_frames = self.get_one_person_videos(folder)
 
@@ -225,9 +305,10 @@ class LoadVideosDataset:
             detected_faces = get_faces_from_images(
                 frames,
                 show_frames,
-                labels_indexes=[frame["emotion"] for frame in selected_frames],
+                labels_indexes=emotions,
                 crop=True,
                 only_one_face=True,
+                folder=folder,
             )
 
             if len(detected_faces) == 0:
@@ -236,6 +317,7 @@ class LoadVideosDataset:
             dataset.append({"faces": detected_faces, "emotions": emotions})
 
         print("--------Videos loaded--------")
+        print("_____________________________")
 
         self.dataset = dataset
 
@@ -244,6 +326,8 @@ class LoadVideosDataset:
     def get_one_person_videos(self, folder):
         selected_frames = []
 
+        emotions_counter = {1: 0, 3: 0, 4: 0, 5: 0}
+
         for video_filename in os.listdir(config.VIDEOS_DIRECTORY + folder):
             if (
                 config.MAX_VIDEOS_PER_PERSON is not None
@@ -251,9 +335,19 @@ class LoadVideosDataset:
                 >= config.MAX_VIDEOS_PER_PERSON
             ):
                 break
-            # print("Loading video:", video_filename)
 
             emotion_index = int(video_filename[6:8])
+
+            if emotion_index not in config.EMOTIONS_DICT:
+                continue
+
+            if (
+                emotion_index != 1
+                and emotions_counter[1] <= emotions_counter[emotion_index]
+            ):
+                continue
+
+            emotions_counter[emotion_index] += 1
 
             video_path = os.path.join(config.VIDEOS_DIRECTORY + folder, video_filename)
 
@@ -262,7 +356,7 @@ class LoadVideosDataset:
             all_frames = []
 
             while cap.isOpened():
-                ret, frame = cap.read()  # frame size: (720, 1280, 3)
+                ret, frame = cap.read()
                 if ret:
                     all_frames.append(frame)
                 else:
@@ -300,10 +394,12 @@ class LoadVideosDataset:
     def save_dataset_to_file(self, filename="videos_dataset.npy"):
         path = os.path.join(config.DATASETS_DIRECTORY, filename)
         np.save(path, self.dataset)
+        print("--------Dataset saved--------")
 
     def load_dataset_from_file(self, filename="videos_dataset.npy"):
         path = os.path.join(config.DATASETS_DIRECTORY, filename)
         dataset = np.load(path, allow_pickle=True)
+        print("--------Dataset loaded--------")
         self.dataset = dataset.tolist()
         return list(dataset)
 
@@ -314,10 +410,18 @@ if __name__ == "__main__":
 
     dataset = LoadVideosDataset()
 
-    dataset.get_videos(show_frames=False)
+    # dataset.get_videos(show_frames=False)
+
+    # dataset.print_dataset_info()
+
+    # dataset.normalize_dataset()
+
+    dataset.load_dataset_from_file("full_dataset_size_100_frames_8_equal_classes.npy")
 
     dataset.print_dataset_info()
 
-    dataset.normalize_dataset()
+    dataset.generate_face_eye_mouth_images()
+
+    dataset.print_dataset_info()
 
     dataset.save_dataset_to_file(filename="test.npy")
