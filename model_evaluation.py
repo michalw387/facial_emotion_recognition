@@ -23,6 +23,12 @@ class EvaluateModel:
 
         self.eye_mouth_images = eye_mouth_images
 
+        self.train_losses = []
+        self.val_losses = []
+        self.train_accuracies = []
+        self.val_accuracies = []
+        self.val_f1_scores = []
+
         self.init_model_parameters()
 
     def init_model_parameters(self):
@@ -80,6 +86,9 @@ class EvaluateModel:
                 val_correct = 0
                 val_total = 0
 
+                all_preds = []
+                all_labels = []
+
                 # Training phase
                 self.model.train()
                 for x, y in self.train_loader:
@@ -102,6 +111,8 @@ class EvaluateModel:
                     train_total += len(y_train)
 
                 train_accuracy = train_correct / train_total
+                self.train_losses.append(train_loss / len(self.train_loader))
+                self.train_accuracies.append(train_accuracy)
 
                 # Validation phase
                 self.model.eval()
@@ -120,7 +131,15 @@ class EvaluateModel:
                         val_correct += self.count_similar(val_outputs, y_val)
                         val_total += len(y_val)
 
+                        all_preds.extend(val_outputs.cpu().numpy())
+                        all_labels.extend(y_val.cpu().numpy())
+
                 current_val_accuracy = val_correct / val_total
+                self.val_losses.append(val_loss / len(self.val_loader))
+                self.val_accuracies.append(current_val_accuracy)
+                self.val_f1_scores.append(
+                    f1_score(all_labels, all_preds, average="weighted")
+                )
 
                 if self.val_accuracy < current_val_accuracy:
                     self.val_accuracy = current_val_accuracy
@@ -133,7 +152,8 @@ class EvaluateModel:
                         f"Train Loss: {train_loss/len(self.train_loader):.4f}, "
                         f"Train Acc: {train_accuracy:.4f}, "
                         f"Val Loss: {val_loss/len(self.val_loader):.4f}, "
-                        f"Val Acc: {current_val_accuracy:.4f}"
+                        f"Val Acc: {current_val_accuracy:.4f}, "
+                        f"Val F1: {self.val_f1_scores[-1]:.4f}"
                     )
 
             print(
@@ -185,6 +205,7 @@ class EvaluateModel:
         )
         if show_plots:
             self.plot_confusion_matrix(all_labels, all_preds)
+            self.plot_metrics()
 
     def predict(self, X):
         pred = self.model(X.cuda())
@@ -209,6 +230,32 @@ class EvaluateModel:
         plt.ylabel("Actual")
         plt.title("Confusion Matrix")
         plt.savefig("confusion_matrix.png")
+        plt.show()
+
+    def plot_metrics(self):
+        epochs_range = range(self.epochs)
+
+        plt.figure(figsize=(14, 5))
+
+        plt.subplot(1, 3, 1)
+        plt.plot(epochs_range, self.train_losses, label="Training Loss")
+        plt.plot(epochs_range, self.val_losses, label="Validation Loss")
+        plt.legend(loc="upper right")
+        plt.title("Training and Validation Loss")
+
+        plt.subplot(1, 3, 2)
+        plt.plot(epochs_range, self.train_accuracies, label="Training Accuracy")
+        plt.plot(epochs_range, self.val_accuracies, label="Validation Accuracy")
+        plt.legend(loc="upper right")
+        plt.title("Training and Validation Accuracy")
+
+        plt.subplot(1, 3, 3)
+        plt.plot(epochs_range, self.val_f1_scores, label="Validation F1 Score")
+        plt.legend(loc="upper right")
+        plt.title("Validation F1 Score")
+
+        plt.tight_layout()
+        plt.savefig("training_validation_metrics.png")
         plt.show()
 
     def load_data(self, data_filename) -> None:
