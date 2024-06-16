@@ -9,7 +9,7 @@ from sklearn.metrics import f1_score, confusion_matrix
 import config
 from image_processing import ImageProcessing
 from videos_dataset import LoadVideosDataset
-from cnn_models import Model3D100, Model3D200, Model2D100
+from cnn_models import Model3D100, Model2D100
 
 
 class EvaluateModel:
@@ -128,21 +128,26 @@ class EvaluateModel:
                         val_outputs = self.model(x_val)
 
                         val_loss += self.criterion(val_outputs, y_val).item()
-                        val_correct += self.count_similar(val_outputs, y_val)
+
+                        _, val_preds = torch.max(val_outputs, 1)
+                        _, y_val = torch.max(y_val, 1)
+                        val_correct += torch.sum(val_preds == y_val).item()
                         val_total += len(y_val)
 
-                        all_preds.extend(val_outputs.cpu().numpy())
+                        all_preds.extend(val_preds.cpu().numpy())
                         all_labels.extend(y_val.cpu().numpy())
 
                 current_val_accuracy = val_correct / val_total
+                current_val_f1_score = f1_score(
+                    all_labels, all_preds, average="weighted"
+                )
                 self.val_losses.append(val_loss / len(self.val_loader))
                 self.val_accuracies.append(current_val_accuracy)
-                self.val_f1_scores.append(
-                    f1_score(all_labels, all_preds, average="weighted")
-                )
+                self.val_f1_scores.append(current_val_f1_score)
 
                 if self.val_accuracy < current_val_accuracy:
                     self.val_accuracy = current_val_accuracy
+                    self.val_f1_score = current_val_f1_score
                     best_epoch = epoch
                     best_model = self.model.state_dict()
 
@@ -158,7 +163,7 @@ class EvaluateModel:
 
             print(
                 f"\n-------------------------------------------------\n"
-                f"Best model accuracy: {self.val_accuracy}, in epoch: {best_epoch+1}\n"
+                f"Best model accuracy: {self.val_accuracy:.6f}, F1-score: {self.val_f1_score:.6f}, in epoch: {best_epoch+1}\n"
                 f"-------------------------------------------------\n"
             )
 
@@ -184,15 +189,15 @@ class EvaluateModel:
 
                 test_outputs = self.predict(x_test)
 
-                test_outputs = torch.tensor(
+                test_preds = torch.tensor(
                     ImageProcessing.readjust_indexes_emotions(test_outputs.cpu())
                 ).float()
                 y_test = y_test.float().cpu()
 
-                test_correct += torch.sum(test_outputs == y_test).item()
+                test_correct += torch.sum(test_preds == y_test).item()
                 test_total += len(y_test)
 
-                all_preds.extend(test_outputs.cpu().numpy())
+                all_preds.extend(test_preds.cpu().numpy())
                 all_labels.extend(y_test.cpu().numpy())
 
         self.test_accuracy = test_correct / test_total
@@ -228,34 +233,53 @@ class EvaluateModel:
         )
         plt.xlabel("Predicted")
         plt.ylabel("Actual")
-        plt.title("Confusion Matrix")
-        plt.savefig("confusion_matrix.png")
+        plt.title(f"Confusion Matrix for {self.epochs} epochs and lr={self.lr}")
+        cm_name = f"confusion_matrix_epochs{self.epochs}.png"
+        cm_path = os.path.join(config.RESULTS_DIRECTORY, cm_name)
+        plt.savefig(cm_path)
         plt.show()
 
     def plot_metrics(self):
         epochs_range = range(self.epochs)
 
         plt.figure(figsize=(14, 5))
+        plt.suptitle(
+            f"Training and Validation Metrics for {self.epochs} epochs and lr={self.lr}"
+        )
 
         plt.subplot(1, 3, 1)
         plt.plot(epochs_range, self.train_losses, label="Training Loss")
         plt.plot(epochs_range, self.val_losses, label="Validation Loss")
-        plt.legend(loc="upper right")
         plt.title("Training and Validation Loss")
+        plt.xlabel("Epochs")
+        plt.ylabel("Loss")
+        plt.xlim(0, self.epochs)
+        plt.legend(loc="upper right")
+        plt.grid()
 
         plt.subplot(1, 3, 2)
         plt.plot(epochs_range, self.train_accuracies, label="Training Accuracy")
         plt.plot(epochs_range, self.val_accuracies, label="Validation Accuracy")
-        plt.legend(loc="upper right")
         plt.title("Training and Validation Accuracy")
+        plt.xlabel("Epochs")
+        plt.ylabel("Accuracy")
+        plt.xlim(0, self.epochs)
+        plt.legend(loc="lower right")
+        plt.grid()
 
         plt.subplot(1, 3, 3)
         plt.plot(epochs_range, self.val_f1_scores, label="Validation F1 Score")
-        plt.legend(loc="upper right")
         plt.title("Validation F1 Score")
+        plt.xlabel("Epochs")
+        plt.ylabel("F1 Score")
+        plt.xlim(0, self.epochs)
+        plt.legend(loc="lower right")
+        plt.grid()
 
         plt.tight_layout()
-        plt.savefig("training_validation_metrics.png")
+        fig_name = f"training_validation_metrics_epochs{self.epochs}.png"
+        fig_path = os.path.join(config.RESULTS_DIRECTORY, fig_name)
+        plt.savefig(fig_path)
         plt.show()
 
     def load_data(self, data_filename) -> None:
@@ -282,13 +306,15 @@ class EvaluateModel:
         )
 
     def save_model_to_file(self, filename="emotions_recognition_model.pt") -> None:
-        file_path = os.path.join(config.MODELS_DIRECTORY, filename)
-        torch.save(self.model.state_dict(), file_path)
-        print("--------Model saved--------")
+        try:
+            file_path = os.path.join(config.MODELS_DIRECTORY, filename)
+            torch.save(self.model.state_dict(), file_path)
+        except:
+            raise Exception("An exception occurred while saving model to file")
+        print(f"--------Model saved to {file_path}--------")
 
     def load_model(self, filename="emotions_recognition_model.pt", model=Model3D100()):
         try:
-
             file_path = os.path.join(config.MODELS_DIRECTORY, filename)
             self.model = model
             self.model.load_state_dict(torch.load(file_path))
@@ -297,7 +323,7 @@ class EvaluateModel:
             raise FileNotFoundError(f'File "{filename}" with model not found')
         except:
             raise Exception("An exception occurred while loading model from file")
-        print("--------Model loaded--------")
+        print(f"--------Model loaded from {file_path}--------")
 
     def load_train_save_model(
         self, data_filename=None, save_model_filename=None, show_test_plots=False
@@ -311,12 +337,13 @@ class EvaluateModel:
 
 if __name__ == "__main__":
 
-    # Evalutating and saving models
-    ev1 = EvaluateModel(
-        model=Model3D100(), epochs=150, lr=0.005, eye_mouth_images=True
-    )  # dlaczego tutaj nie chcę robić transpozycji?????????????????
+    # Evaluating and saving models
+
+    ev1 = EvaluateModel(model=Model3D100(), epochs=200, lr=0.001)
+    # epochs 100 / 150 / 200
+    # lr 0.01 / 0.005 / 0.001
     ev1.load_train_save_model(
-        data_filename="full_FEM_size100_frames8.npy",
-        save_model_filename="full_dataset_size100_frames8_epochs150.pt",
+        data_filename="full_size100_frames8.npy",
+        save_model_filename="full_size100_frames8_epochs200_withoutEM_v2.pt",
         show_test_plots=True,
     )
