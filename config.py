@@ -5,6 +5,7 @@ VIDEOS_DIRECTORY = "Data\\Videos\\"
 IMAGES_DIRECTORY = "Data\\Images\\"
 MODELS_DIRECTORY = "Models\\"
 DATASETS_DIRECTORY = "Data\\Datasets\\"
+RESULTS_DIRECTORY = "Results\\"
 
 IMAGE_FILES = ["barack.jpg", "baracks.jpg", "people.jpg"]
 
