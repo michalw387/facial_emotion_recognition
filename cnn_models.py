@@ -121,25 +121,25 @@ class Model2D100(nn.Module):
         self.flatten = nn.Flatten()
         self.sequence = nn.Sequential(
             # 1 x 100 x 100
-            nn.Conv2d(input_dim, hidden_dim * 2, kernel_size=2, stride=1, padding=1),
-            nn.LeakyReLU(),
+            nn.Conv2d(input_dim, hidden_dim * 2, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(),
             nn.MaxPool2d(2, 2),
             # 16 X 50 X 50
             nn.Conv2d(
-                hidden_dim * 2, hidden_dim * 4, kernel_size=2, stride=1, padding=1
+                hidden_dim * 2, hidden_dim * 4, kernel_size=3, stride=1, padding=1
             ),
-            nn.LeakyReLU(),
+            nn.ReLU(),
             nn.MaxPool2d(2, 2),
             # 32 X 25 X 25
             nn.Conv2d(
-                hidden_dim * 4, hidden_dim * 8, kernel_size=2, stride=1, padding=1
+                hidden_dim * 4, hidden_dim * 8, kernel_size=3, stride=1, padding=1
             ),
-            nn.LeakyReLU(),
+            nn.ReLU(),
             nn.MaxPool2d(5, 5),
             # 64 X 5 X 5
             nn.Flatten(),
-            # nn.Dropout(0.3),
-            # nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.ReLU(),
             # 1600
             nn.Linear(hidden_dim * 8 * 5 * 5, output_dim),
             nn.Softmax(dim=1),
