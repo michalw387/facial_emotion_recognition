@@ -9,7 +9,7 @@ import config
 class ImageProcessing:
 
     @staticmethod
-    def adjust_indexes_emotions(emotions):  # przełożyć do detecting_emotions.py
+    def adjust_indexes_emotions(emotions):
         adjusted_emotions = []
 
         for emotion in emotions:
@@ -21,7 +21,7 @@ class ImageProcessing:
         return np.array(adjusted_emotions)
 
     @staticmethod
-    def readjust_indexes_emotions(emotions):  # przełożyć do detecting_emotions.py
+    def readjust_indexes_emotions(emotions):
         adjusted_emotions = []
 
         for emotion in emotions:
@@ -33,7 +33,7 @@ class ImageProcessing:
         return np.array(adjusted_emotions)
 
     @staticmethod
-    def apply_hog(frames):
+    def apply_hog(frames, display_hog_img=False):
         hog_frames = []
         frames = np.array(frames)
 
@@ -41,21 +41,32 @@ class ImageProcessing:
             frames = [frames]
 
         for frame in frames:
-            frame = np.array(frame)
+            frame = np.array(frame, dtype=np.float32)
 
-            # Compute HOG features and the corresponding HOG image
             _, hog_image = hog(
                 frame,
                 orientations=8,
-                pixels_per_cell=(16, 16),
-                cells_per_block=(1, 1),
+                pixels_per_cell=(8, 8),
+                cells_per_block=(2, 2),
                 visualize=True,
                 channel_axis=-1 if frame.ndim == 3 else None,
             )
 
-            cv2.imshow("HOG Image", hog_image)
-            cv2.waitKey(0)
-            cv2.destroyAllWindows()
+            hog_image = (hog_image - hog_image.min()) / (
+                hog_image.max() - hog_image.min()
+            )
+
+            if display_hog_img:
+                cv2.imshow("Original Image", frame)
+                hog_image_display = (hog_image * 255).astype(np.uint8)
+                hog_image_colormap = cv2.applyColorMap(
+                    hog_image_display, cv2.COLORMAP_JET
+                )
+
+                cv2.imshow("HOG Image", hog_image_colormap)
+                cv2.imshow("hog", hog_image)
+                cv2.waitKey(0)
+                cv2.destroyAllWindows()
 
             hog_frames.append(hog_image)
 

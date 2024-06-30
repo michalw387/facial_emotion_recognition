@@ -339,11 +339,9 @@ if __name__ == "__main__":
 
     # Evaluating and saving models
 
-    ev1 = EvaluateModel(model=Model3D100(), epochs=200, lr=0.001)
-    # epochs 100 / 150 / 200
-    # lr 0.01 / 0.005 / 0.001
+    ev1 = EvaluateModel(model=Model3D100(), epochs=100, lr=0.003)
     ev1.load_train_save_model(
         data_filename="full_size100_frames8.npy",
-        save_model_filename="full_size100_frames8_epochs200_withoutEM_v2.pt",
+        save_model_filename="full_size100_frames8_epochs100.pt",
         show_test_plots=True,
     )

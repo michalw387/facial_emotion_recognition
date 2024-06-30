@@ -6,9 +6,7 @@ import numpy as np
 from detecting_emotions import get_emotion_prediction
 from face_detection_from_photos import get_faces_from_images
 import config
-from utility_functions import apply_hog
-
-# from model import EvaluateModel
+from image_processing import ImageProcessing
 
 
 def video_capture(model, hog=False, dim=3):
@@ -32,27 +30,21 @@ def video_capture(model, hog=False, dim=3):
             if len(face_locations) == 0:
                 continue
 
-            faces = get_faces_from_images(current_frame, show_image=False, crop=True)
+            faces = get_faces_from_images(
+                current_frame, show_image=False, crop=True, show_tqdm=False
+            )
 
             emotions = []
 
-            print(np.array(faces).shape)
-
             for face in faces[0]:
-
-                face = apply_hog(face) if hog else face
-
-                print(face.shape)
                 emotion = get_emotion_prediction(model, face)
+
                 emotions.append(emotion)
                 print(f"Emotion: {emotion}")
-                print("-----------")
 
         for (top, right, bottom, left), emotion in zip(face_locations, emotions):
-            # Draw a box around the face
             cv2.rectangle(current_frame, (left, top), (right, bottom), (0, 0, 255), 2)
 
-            # Draw a label with a name below the face
             cv2.putText(
                 current_frame,
                 emotion,

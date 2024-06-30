@@ -1,9 +1,7 @@
-from PIL import Image
-import PIL
 import numpy as np
 import torch
 
-from image_processing import readjust_indexes_emotions
+from image_processing import ImageProcessing
 
 
 def normalize_image(image):
@@ -31,12 +29,10 @@ def normalize_to_tensor(face, transpose=True):
 def get_emotion_prediction(model, face):
     face = normalize_to_tensor(face)
 
-    print(face.shape)
-
     tensor_emotion = model.predict(face)
 
     tensor_emotion = torch.tensor(
-        readjust_indexes_emotions(tensor_emotion.cpu())
+        ImageProcessing.readjust_indexes_emotions(tensor_emotion.cpu())
     ).float()
 
     emotion = model.get_emotion_from_tensor(tensor_emotion)

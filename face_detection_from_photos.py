@@ -1,7 +1,5 @@
 import numpy as np
 import cv2
-import PIL
-from PIL import Image
 import face_recognition
 from tqdm import tqdm
 
@@ -15,7 +13,6 @@ def show_image_with_rectangles(
     for face_location in face_locations:
         top, right, bottom, left = face_location
 
-        # Draw rectangle around the face
         cv2.rectangle(image, (left, top), (right, bottom), (255, 0, 0), 2)
 
         if label:
@@ -34,7 +31,6 @@ def show_image_with_rectangles(
     if bgr_image:
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
-    # Display the image with rectangles
     cv2.imshow(
         "Faces",
         image,
@@ -50,19 +46,19 @@ def get_faces_from_images(
     crop=False,
     only_one_face=False,
     folder=None,
+    show_tqdm=True,
 ):
     all_images_faces = []
 
     if images.ndim == 3:
         images = np.array([images])
 
-    for i, image in enumerate(tqdm(images)):
+    for i, image in enumerate(tqdm(images, disable=(not show_tqdm))):
 
         txt_folder = f"from folder {folder}" if folder else ""
 
-        # print(f"Processing image {i + 1}/{len(images)}", txt_folder)
-
-        tqdm.write(f"Processing image {i + 1}/{len(images)} {txt_folder}")
+        if show_tqdm:
+            tqdm.write(f"Processing image {i + 1}/{len(images)} {txt_folder}")
 
         image_faces_locations = get_faces_locations_from_image(image)
 
@@ -80,7 +76,6 @@ def get_faces_from_images(
 
             for face in cropped_faces:
                 square_face = ImageProcessing.resize_image_to_square(face)
-                # dodać transformację twarzy do landmarków
                 resizes_faces.append(square_face)
 
             cropped_faces = np.array(resizes_faces)
@@ -106,21 +101,3 @@ def get_faces_locations_from_image(image):
 def get_faces_from_image_file(image_path):
     image = face_recognition.load_image_file(image_path)
     return get_faces_locations_from_image(image)
-
-
-if __name__ == "__main__":
-    for file_name in config.IMAGE_FILES:
-        faces_locations = get_faces_from_image_file(config.VIDEOS_DIRECTORY + file_name)
-
-        print("--------------------")
-        print(np.array(faces_locations))
-        for loc in faces_locations:
-            top, right, bottom, left = loc
-            print(f"width: {right-left}, height: {bottom-top}")
-
-        show_image_with_rectangles(
-            cv2.imread(config.VIDEOS_DIRECTORY + file_name), faces_locations
-        )
-
-    # for file_name in config.IMAGE_FILES:
-    #     find_faces_with_landmarks(config.VIDEOS_DIRECTORY + file_name)

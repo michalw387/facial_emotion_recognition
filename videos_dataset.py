@@ -17,8 +17,9 @@ from face_detection_from_photos import get_faces_from_images
 
 class VideosDataset(Dataset):
     def __init__(self, faces, emotions):
-        self.faces = torch.tensor(faces)
-        self.emotions = torch.tensor(emotions)
+        self.faces = self.get_tensor(faces)
+        self.emotions = self.get_tensor(emotions)
+
         self.n_faces = len(self.faces)
 
     def __len__(self):
@@ -26,6 +27,15 @@ class VideosDataset(Dataset):
 
     def __getitem__(self, index):
         return self.faces[index], self.emotions[index]
+
+    @staticmethod
+    def get_tensor(object):
+        if isinstance(object, np.ndarray):
+            return torch.from_numpy(object).clone().detach()
+        elif torch.is_tensor(object):
+            return object.clone().detach()
+        else:
+            return torch.tensor(object).clone().detach()
 
 
 class LoadVideosDataset:
@@ -54,6 +64,7 @@ class LoadVideosDataset:
             config.EMOTIONS_DICT[i] for i in self.different_emotions_index
         ]
 
+        print("______________________________")
         print("--------Dataset info--------")
         print("People in dataset:", len(self.dataset))
         print("Frames per person:", len(self.dataset[0]["faces"]))
@@ -67,7 +78,6 @@ class LoadVideosDataset:
         if count_emotions:
             self.count_emotions()
             print("Emotions counter:", self.emotions_counter)
-
         print("______________________________")
 
     def count_emotions(self):
@@ -107,11 +117,14 @@ class LoadVideosDataset:
         )
 
         if config.APPLY_HOG:
+            faces = self.unnormalize_faces(faces)
             faces = ImageProcessing.apply_hog(faces)
         elif gray_scale or config.GENERATE_MOUTH_AND_EYE:
+            faces = self.unnormalize_faces(faces)
             faces = np.array([rgb2gray(frame) for frame in faces])
+            faces = self.normalize_faces(faces)
 
-        if transpose:  # ??????????????????????????????????????
+        if transpose:
             faces = np.array([face.T for face in faces])
 
         if config.GENERATE_MOUTH_AND_EYE:
@@ -392,14 +405,22 @@ class LoadVideosDataset:
         cv2.destroyAllWindows()
 
     def save_dataset_to_file(self, filename="videos_dataset.npy"):
-        path = os.path.join(config.DATASETS_DIRECTORY, filename)
-        np.save(path, self.dataset)
-        print("--------Dataset saved--------")
+        try:
+            dataset_path = os.path.join(config.DATASETS_DIRECTORY, filename)
+            np.save(dataset_path, self.dataset)
+        except:
+            raise Exception(f"Error while saving dataset to file")
+        print(f"--------Dataset saved to {dataset_path}--------")
 
     def load_dataset_from_file(self, filename="videos_dataset.npy"):
-        path = os.path.join(config.DATASETS_DIRECTORY, filename)
-        dataset = np.load(path, allow_pickle=True)
-        print("--------Dataset loaded--------")
+        try:
+            dataset_path = os.path.join(config.DATASETS_DIRECTORY, filename)
+            dataset = np.load(dataset_path, allow_pickle=True)
+        except FileNotFoundError:
+            raise FileNotFoundError(f'File "{filename}" with dataset not found')
+        except:
+            raise Exception(f"Error while loading dataset from file")
+        print(f"--------Dataset loaded from {dataset_path}--------")
         self.dataset = dataset.tolist()
         return list(dataset)
 
@@ -411,17 +432,14 @@ if __name__ == "__main__":
     dataset = LoadVideosDataset()
 
     # dataset.get_videos(show_frames=False)
-
     # dataset.print_dataset_info()
 
     # dataset.normalize_dataset()
 
-    dataset.load_dataset_from_file("full_dataset_size_100_frames_8_equal_classes.npy")
-
+    dataset.load_dataset_from_file("full_size100_frames8.npy")
     dataset.print_dataset_info()
 
-    dataset.generate_face_eye_mouth_images()
-
-    dataset.print_dataset_info()
+    # dataset.generate_face_eye_mouth_images()
+    # dataset.print_dataset_info()
 
     dataset.save_dataset_to_file(filename="test.npy")

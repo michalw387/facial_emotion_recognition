@@ -1,9 +1,5 @@
 import numpy as np
 import dlib
-import cv2
-
-from skimage import io
-from image_processing import ImageProcessing
 
 
 class EyeMouthImages:
@@ -82,50 +78,3 @@ class EyeMouthImages:
             (rect.top(), rect.right(), rect.bottom(), rect.left())
             for rect in rectangles
         ]
-
-
-if __name__ == "__main__":
-    # Load image
-    image = io.imread("Data\\Images\\angry1.jpg")
-
-    # Convert image to RGB format
-    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-
-    image = ImageProcessing.resize_image(image, 1000)
-
-    image = np.array(image)
-
-    # Create a HOG face detector using the built-in dlib class
-    face_detector = dlib.get_frontal_face_detector()
-
-    # Resize the image if it's too large
-    image = ImageProcessing.resize_image(image, 1000)
-
-    # Run the HOG face detector on the image data
-    detected_faces = face_detector(image)
-
-    detected_faces = EyeMouthImages.convert_dlib_rectangles_to_tuples(detected_faces)
-
-    cropped_faces = ImageProcessing.crop_faces_from_image(
-        image, detected_faces
-    )  # (faces, height, width, channels)
-
-    resized_faces = []
-
-    for face in cropped_faces:
-        square_face = ImageProcessing.resize_image_to_square(face)
-        # dodać transformację twarzy do landmarków
-        resized_faces.append(square_face)
-
-    resized_faces[0] = cv2.cvtColor(resized_faces[0], cv2.COLOR_RGB2GRAY)
-
-    # mouth_image, right_eye_image = Landmarks.get_eye_mouth_images(image, detected_faces[0])
-    mouth_image, right_eye_image = EyeMouthImages.get_eye_mouth_images(resized_faces[0])
-    cv2.imshow("Image", resized_faces[0])
-    cv2.imshow("Mouth", mouth_image)
-    cv2.imshow("Right eye", right_eye_image)
-
-    # frame = find_faces_with_landmarks_cv(image)
-    # cv2.imshow("Video", frame)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
